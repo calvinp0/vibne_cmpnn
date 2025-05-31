@@ -1,0 +1,28 @@
+cd /path/to/your/project         # ← make sure you’re at the root
+git init                         # ← start a local repo
+cat << 'EOF' > .gitignore
+# PyTorch Lightning logs
+tb_logs/
+lightning_logs/
+
+# Checkpoints and pytest cache
+checkpoints/
+.pytest_cache/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# VSCode settings
+.vscode/
+
+# Generated data folders
+processed/
+raw/
+
+# Miscellaneous
+*.log
+*.csv
+*.pt
+EOF

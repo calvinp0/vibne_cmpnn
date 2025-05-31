@@ -1,0 +1,8 @@
+{
+  "hidden_dim": 185,
+  "num_steps": 1,
+  "head_hidden_dim": 141,
+  "lr": 0.003287500041685711,
+  "dropout_mp": 0.038650094380616805,
+  "dropout_head": 0.3353604767966273
+}
