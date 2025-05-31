@@ -558,37 +558,37 @@ class MultiCMPNNLitModel(pl.LightningModule):
         if loss is not None:
             self.val_losses.append(loss.cpu().item())    
 
-    def on_train_end(self):
-        print(">> on_fit_end triggered")
-        import matplotlib.pyplot as plt
-        import os
-        if len(self.train_losses) == 0 or len(self.val_losses) == 0:
-            print("No training or validation losses to plot.")
-            return
-        print(">> on_fit_end triggered")
+    # def on_train_end(self):
+    #     print(">> on_fit_end triggered")
+    #     import matplotlib.pyplot as plt
+    #     import os
+    #     if len(self.train_losses) == 0 or len(self.val_losses) == 0:
+    #         print("No training or validation losses to plot.")
+    #         return
+    #     print(">> on_fit_end triggered")
 
         
-        min_len = min(len(self.train_losses), len(self.val_losses))
-        train_losses = self.train_losses[:min_len]
-        val_losses   = self.val_losses[:min_len]
-        epochs       = range(1, min_len + 1)
+    #     min_len = min(len(self.train_losses), len(self.val_losses))
+    #     train_losses = self.train_losses[:min_len]
+    #     val_losses   = self.val_losses[:min_len]
+    #     epochs       = range(1, min_len + 1)
 
-        plt.figure()
-        plt.plot(epochs, train_losses, label="Train Loss")
-        plt.plot(epochs, val_losses, label="Val Loss")
+    #     plt.figure()
+    #     plt.plot(epochs, train_losses, label="Train Loss")
+    #     plt.plot(epochs, val_losses, label="Val Loss")
 
-        plt.yscale("log")
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.title("Train vs Val Loss")
-        plt.legend()
+    #     plt.yscale("log")
+    #     plt.xlabel("Epoch")
+    #     plt.ylabel("Loss")
+    #     plt.title("Train vs Val Loss")
+    #     plt.legend()
 
-        log_dir = self.trainer.logger.log_dir if self.trainer.logger else "."
-        img_dir = os.path.join(log_dir, "images")
-        print(f"Saving loss curve to {img_dir}")
-        os.makedirs(img_dir, exist_ok=True)
-        plt.savefig(os.path.join(img_dir, "loss_curve.png"))
-        plt.close()
+    #     log_dir = self.trainer.logger.log_dir if self.trainer.logger else "."
+    #     img_dir = os.path.join(log_dir, "images")
+    #     print(f"Saving loss curve to {img_dir}")
+    #     os.makedirs(img_dir, exist_ok=True)
+    #     plt.savefig(os.path.join(img_dir, "loss_curve.png"))
+    #     plt.close()
 
     @torch.no_grad()
     def inverse_transform(self, y_scaled: torch.Tensor) -> torch.Tensor:

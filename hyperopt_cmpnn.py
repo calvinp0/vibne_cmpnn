@@ -12,6 +12,8 @@ from pl_module import MultiCMPNNLitModel
 from utils_paired import collate_pairs
 from metrics import MSE, MAE, RMSE, R2Score, PinballLoss
 
+pl.seed_everything(42)  # for reproducibility
+
 # ─────── WandB OFFLINE so nothing is pushed to the cloud ──────────
 os.environ["WANDB_MODE"]   = "offline"
 os.environ["WANDB__SERVICE_WAIT"] = "300"   # keeps the daemon quiet
@@ -37,7 +39,7 @@ def log_final_model(checkpoint_path: str, rank: int, val_loss: float):
 
 
 SDF_DIR = "/home/calvin.p/Code/dmpnn_customized/DATA/sdf_data"
-TARGETS = "/home/calvin.p/Code/dmpnn_customized/DATA/target_data/kinetics_summary.csv"
+TARGETS = "/home/calvin.p/Code/Data/target_data/temp_kinetics_for.csv"
 TARGETS_COLS  = ['A_log10','n', 'Ea_yj']
 TARGETS_TYPES = {'A_log10': 'continuous', 'n': 'continuous', 'Ea_yj': 'continuous'}
 
