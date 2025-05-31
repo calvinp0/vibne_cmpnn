@@ -152,6 +152,12 @@ def objective(trial: optuna.Trial) -> float:
     trainer.fit(model, train_loader, val_loader)
 
     val_loss = trainer.callback_metrics["val_loss"].item()
+
+    # Report intermediate results for pruning
+
+    if trial.should_prune():
+        wandb_logger.finalize(status="pruned")
+        raise optuna.TrialPruned(f"Trial {trial.number} pruned at val_loss={val_loss:.4f}")
     wandb_logger.log_metrics({"val_loss": val_loss})
     wandb_logger.finalize(status="finished")
 
