@@ -42,6 +42,7 @@ SDF_DIR = "/home/calvin.p/Code/dmpnn_customized/DATA/sdf_data"
 TARGETS = "/home/calvin.p/Code/Data/target_data/temp_kinetics_for.csv"
 TARGETS_COLS  = ['A_log10','n', 'Ea_yj']
 TARGETS_TYPES = {'A_log10': 'continuous', 'n': 'continuous', 'Ea_yj': 'continuous'}
+EXTRA_FEATS = "/home/calvin.p/Code/dmpnn_customized/DATA/sdf_data/all_sdf_features.csv"
 
 def make_dataset(atom_messages: bool) -> MultiCMPNNDatasetSDF:
     return MultiCMPNNDatasetSDF(
@@ -55,6 +56,8 @@ def make_dataset(atom_messages: bool) -> MultiCMPNNDatasetSDF:
         sanitize       = True,
         force_reload   = False,       # cached by auto hash
         prune_value    = -10,
+        atom_extra_feats = EXTRA_FEATS,
+        rbf_num_centers=16,
     )
 
 
@@ -86,6 +89,7 @@ def objective(trial: optuna.Trial) -> float:
 
     ds_trial = make_dataset(hparams["atom_messages"])
     train_idx, val_idx, _ = random_split_indices(ds_trial, 0.1, 0.1, seed=42)
+    ds_trial.attach_atom_extra_features(train_idx)
     ds_trial.compute_normalization(train_idx)
     ds_trial.apply_normalization()
 
@@ -188,6 +192,7 @@ for rank, tr in enumerate(top_trials, 1):
     # Rebuild & normalize dataset for final run
     ds_best               = make_dataset(hp["atom_messages"])
     train_i, val_i, test_i = random_split_indices(ds_best, 0.1, 0.1, seed=42)
+    ds_best.attach_atom_extra_features(train_i)
     ds_best.compute_normalization(train_i)
     ds_best.apply_normalization()
 
