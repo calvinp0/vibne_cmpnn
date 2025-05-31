@@ -61,6 +61,10 @@ def make_dataset(atom_messages: bool) -> MultiCMPNNDatasetSDF:
 # ────────────────── optuna objective function ─────────────────────
 def objective(trial: optuna.Trial) -> float:
 
+    import wandb
+    if wandb.run is not None:
+        wandb.finish()
+
     # -------- sample hyper-parameters -------------------------------------
     hparams = dict(
         hidden_dim       = trial.suggest_int ("hidden_dim",        256, 1024, step=256),
@@ -85,8 +89,8 @@ def objective(trial: optuna.Trial) -> float:
     ds_trial.compute_normalization(train_idx)
     ds_trial.apply_normalization()
 
-    train_loader = DataLoader(Subset(ds_trial, train_idx), batch_size=64, shuffle=True, collate_fn=collate_pairs)
-    val_loader   = DataLoader(Subset(ds_trial, val_idx),   batch_size=32, shuffle=False, collate_fn=collate_pairs)
+    train_loader = DataLoader(Subset(ds_trial, train_idx), batch_size=64, shuffle=True, collate_fn=collate_pairs, pin_memory=True, num_workers=16)
+    val_loader   = DataLoader(Subset(ds_trial, val_idx),   batch_size=32, shuffle=False, collate_fn=collate_pairs, pin_memory=True, num_workers=16)
 
 
     # -------- metrics list (weights fixed here) ---------------------------
@@ -138,6 +142,7 @@ def objective(trial: optuna.Trial) -> float:
             EarlyStopping("val_loss", patience=8, mode="min"),
             ModelCheckpoint(monitor="val_loss", mode="min"),
         ],
+        log_every_n_steps=10,     # now you’ll get logs after every 10 batches
     )
 
     trainer.fit(model, train_loader, val_loader)
@@ -161,33 +166,66 @@ study   = optuna.create_study(
 )
 SWEEP_EPOCHS = 50          # fast search
 study.optimize(objective, n_trials=50, timeout=6*3600)
-TOPK = 3
+
+# ─────────────────────── top‐k retrain ─────────────────────────────
+TOPK       = 3
 top_trials = sorted(study.trials, key=lambda t: t.value)[:TOPK]
 
-FULL_EPOCHS = 300
-final_models = []
+# Print out the top‐3 trials right here:
+print("\n=== Top‐3 Optuna Trials ===")
+for rank, tr in enumerate(top_trials, 1):
+    print(f"Rank {rank}: trial #{tr.number} → val_loss = {tr.value:.4f}")
+    print("  params:", tr.params)
+print("============================\n")
+
+
+FULL_EPOCHS   = 300
+final_models  = []
 
 for rank, tr in enumerate(top_trials, 1):
-    hp = tr.params                          # ← all the sampled h-params
+    hp = tr.params
 
-    # build dataset if any hashed flag varies
-    ds_best = make_dataset(hp["atom_messages"])
-    train_i, val_i, _ = random_split_indices(ds_best, 0.1, 0.1, seed=42)
+    # Rebuild & normalize dataset for final run
+    ds_best               = make_dataset(hp["atom_messages"])
+    train_i, val_i, test_i = random_split_indices(ds_best, 0.1, 0.1, seed=42)
     ds_best.compute_normalization(train_i)
     ds_best.apply_normalization()
 
-    train_loader = DataLoader(Subset(ds_best, train_i), batch_size=64,
-                              shuffle=True, collate_fn=collate_pairs)
-    val_loader   = DataLoader(Subset(ds_best, val_i),  batch_size=32,
-                              shuffle=False, collate_fn=collate_pairs)
+    train_loader = DataLoader(
+        Subset(ds_best, train_i),
+        batch_size=64,
+        shuffle=True,
+        collate_fn=collate_pairs,
+        pin_memory=True,
+        num_workers=16,
+    )
+    val_loader = DataLoader(
+        Subset(ds_best, val_i),
+        batch_size=32,
+        shuffle=False,
+        collate_fn=collate_pairs,
+        pin_memory=True,
+        num_workers=16,
+    )
+    test_loader = DataLoader(
+        Subset(ds_best, test_i),
+        batch_size=32,
+        shuffle=False,
+        collate_fn=collate_pairs,
+        pin_memory=True,
+        num_workers=16,
+    )
 
-    # metrics list identical to the sweep
+    # Metrics list identical to the sweep
     metrics = [
-        MSE(task_weights=[10,1,1]),
-        PinballLoss(q=hp["pinball_q"], task_weights=[10,1,1]),  # alias auto
-        RMSE([10,1,1]), MAE([10,1,1]), R2Score([10,1,1]),
+        MSE(task_weights=[10, 1, 1]),
+        PinballLoss(q=hp["pinball_q"], task_weights=[10, 1, 1]),
+        RMSE([10, 1, 1]),
+        MAE([10, 1, 1]),
+        R2Score([10, 1, 1]),
     ]
 
+    # Build the final model
     model = MultiCMPNNLitModel(
         in_node_feats      = ds_best.num_atom_features,
         in_edge_feats      = ds_best.num_bond_features,
@@ -211,17 +249,42 @@ for rank, tr in enumerate(top_trials, 1):
         pinball_weight     = hp["pinball_weight"],
     )
 
+    # Train for 300 epochs
     trainer = pl.Trainer(
-        max_epochs = FULL_EPOCHS,
-        accelerator= "gpu", devices=1,
-        logger     = None,                 # or another WandB run
-        callbacks  = [EarlyStopping("val_loss", patience=25, mode="min"),
-                      ModelCheckpoint(monitor="val_loss", mode="min")],
+        max_epochs  = FULL_EPOCHS,
+        accelerator = "gpu",
+        devices     = 1,
+        logger      = None,  # we’ll log the final checkpoint separately
+        callbacks   = [
+            EarlyStopping("val_loss", patience=25, mode="min"),
+            ModelCheckpoint(monitor="val_loss", mode="min"),
+        ],
     )
     trainer.fit(model, train_loader, val_loader)
-    final_models.append((rank, trainer.callback_metrics["val_loss"].item(), model))
-    ckpt = trainer.checkpoint_callback.best_model_path
-    log_final_model(ckpt, rank, trainer.callback_metrics["val_loss"].item())
 
-print("Best value:", study.best_value)
-print("Best params:", study.best_trial.params)
+    final_val_loss = trainer.callback_metrics["val_loss"].item()
+    ckpt_path      = trainer.checkpoint_callback.best_model_path
+    final_models.append((rank, final_val_loss, ckpt_path))
+
+    # Log this final checkpoint as an offline W&B Artifact
+    log_final_model(ckpt_path, rank, final_val_loss)
+
+# ────────────────────── Test the best final model ─────────────────
+best_rank, best_loss, best_ckpt = final_models[0]
+print(f"Testing best final model (Rank 1, val_loss={best_loss:.4f})")
+
+# Create a fresh trainer for testing
+test_trainer = pl.Trainer(accelerator="gpu", devices=1, logger=None)
+
+# Load the model from checkpoint and run test
+best_model = MultiCMPNNLitModel.load_from_checkpoint(best_ckpt, metrics=metrics)
+test_results = test_trainer.test(best_model, test_loader)
+print(f"Test metrics for Rank 1: {test_results}")
+
+# ────────────────────── Print summary ─────────────────────────────
+print("=== Summary ===")
+print("Optuna best trial number:   ", study.best_trial.number)
+print("Optuna best trial val_loss: ", study.best_trial.value)
+print("Best hyperparameters:       ", study.best_trial.params)
+for rank, val_loss, ckpt in final_models:
+    print(f"Final Rank {rank}: val_loss={val_loss:.4f}, checkpoint={ckpt}")
