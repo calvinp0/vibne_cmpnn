@@ -197,3 +197,62 @@ def random_split_indices_repeated(df, n_splits=5, n_repeats=5, seed=42) -> list[
         all_splits.append(repeats)
     return all_splits
 
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from sklearn.metrics import pairwise_distances
+import numpy as np
+
+def featurize_rdkit_fp(smiles_list, radius=2, nbits=2048):
+    fps = []
+    for smi in smiles_list:
+        mol = Chem.MolFromSmiles(smi)
+        if mol is None:
+            fps.append(np.zeros(nbits))  # fallback
+        else:
+            fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=nbits)
+            fps.append(np.array(fp))
+    return np.stack(fps)
+
+def kennard_stone_split(X, k, seed=42):
+    np.random.seed(seed)
+    N = len(X)
+    selected = []
+
+    # Step 1: Choose 2 samples with max distance
+    D = pairwise_distances(X)
+    i, j = np.unravel_index(np.argmax(D), D.shape)
+    selected.extend([i, j])
+
+    # Step 2: Iteratively add the sample farthest from selected
+    while len(selected) < k:
+        remaining = list(set(range(N)) - set(selected))
+        min_dists = np.min(D[remaining][:, selected], axis=1)
+        farthest = remaining[np.argmax(min_dists)]
+        selected.append(farthest)
+
+    return selected
+
+def kennard_stone_cv(df, n_splits=5, seed=42):
+    smiles_list = df["smiles"].tolist()
+    X = featurize_rdkit_fp(smiles_list)
+    N = len(df)
+    selected = kennard_stone_split(X, N, seed=seed)
+
+    folds = [[] for _ in range(n_splits)]
+    for i, idx in enumerate(selected):
+        folds[i % n_splits].append(idx)
+
+    splits = []
+    for i in range(n_splits):
+        val_idx = folds[i]
+        train_idx = list(set(range(N)) - set(val_idx))
+        splits.append((df.iloc[train_idx], df.iloc[val_idx]))
+
+    return splits
+
+def kennard_stone_cross_validation_repeated(df, n_splits=5, n_repeats=5, seed=42):
+    all_splits = []
+    for r in range(n_repeats):
+        splits = kennard_stone_cv(df, n_splits=n_splits, seed=seed + r)
+        all_splits.append(splits)
+    return all_splits

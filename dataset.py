@@ -625,6 +625,8 @@ class MultiCMPNNDatasetSDF(InMemoryDataset):
 
                 g1.name     = mols[0].GetProp("type") if mols[0].HasProp("type") else f"{rxn}_mol1"
                 g2.name     = mols[1].GetProp("type") if mols[1].HasProp("type") else f"{rxn}_mol2"
+                g1.smiles = Chem.MolToSmiles(mols[0])
+                g2.smiles = Chem.MolToSmiles(mols[1])
                 g1.reaction = g2.reaction = rxn
 
                 data_pairs.append((g1, g2))

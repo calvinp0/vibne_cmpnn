@@ -1,0 +1,45 @@
+{
+  "os": "Linux-6.11.0-26-generic-x86_64-with-glibc2.39",
+  "python": "CPython 3.10.16",
+  "startedAt": "2025-06-08T17:26:36.510233Z",
+  "program": "/home/calvin/code/vibe_cmpnn/hyperopt_cmpnn.py",
+  "codePath": "hyperopt_cmpnn.py",
+  "git": {
+    "remote": "git@github.com:calvinp0/vibne_cmpnn.git",
+    "commit": "42546f72094be3205584c97b35691f3c25580fdf"
+  },
+  "root": "/home/calvin/code/vibe_cmpnn",
+  "host": "calvin-hermon",
+  "executable": "/home/calvin/miniforge3/envs/dmpnn_rocm/bin/python",
+  "codePathLocal": "hyperopt_cmpnn.py",
+  "cpu_count": 12,
+  "cpu_count_logical": 20,
+  "gpu": "Navi 23 [Radeon RX 6600/6600 XT/6600M]",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "1966736678912",
+      "used": "957828284416"
+    }
+  },
+  "memory": {
+    "total": "33450795008"
+  },
+  "cpu": {
+    "count": 12,
+    "countLogical": 20
+  },
+  "gpu_amd": [
+    {
+      "id": "0",
+      "uniqueId": "N/A",
+      "vbiosVersion": "115-D534P00-100",
+      "performanceLevel": "auto",
+      "maxPower": "100.0",
+      "series": "Navi 23 [Radeon RX 6600/6600 XT/6600M]",
+      "model": "0x73ff",
+      "vendor": "Advanced Micro Devices, Inc. [AMD/ATI]",
+      "sku": "D534P00"
+    }
+  ]
+}
